@@ -1,12 +1,13 @@
 CREATE DATABASE Hotel
 --
 USE Hotel
+
 CREATE TABLE Hotels (
 	HotelId int IDENTITY(1,1) PRIMARY KEY,
 	Name varchar(100) NOT NULL,
 	City varchar(100) NOT NULL,
 	Rating int NOT NULL CHECK(Rating BETWEEN 1 AND 5)
-)
+);
 
 CREATE TABLE Rooms (
 	RoomId int IDENTITY(1,1) PRIMARY KEY,
@@ -16,7 +17,7 @@ CREATE TABLE Rooms (
 	Price int NOT NULL,
 	Capacity int NOT NULL,
 	Story int NOT NULL
-)
+);
 
 
 CREATE TABLE Staff (
@@ -26,7 +27,7 @@ CREATE TABLE Staff (
 	HotelId int FOREIGN KEY REFERENCES Hotels(HotelId) UNIQUE(FirstName, LastName, HotelId),
 	Gender int CHECK(Gender IN (0,1,2,9)) NOT NULL,  --ISO/IEC 5218
 	Job varchar(30) CHECK(Job IN ('Receptionist','Cleaner', 'Service')),
-)
+);
 
 CREATE TABLE Visitors (
 	VisitorID int IDENTITY(1,1) PRIMARY KEY,
@@ -34,7 +35,7 @@ CREATE TABLE Visitors (
 	LastName varchar(100) NOT NULL,
 	Gender int CHECK(Gender IN (0,1,2,9)) NOT NULL,
 	PIN varchar(11) NOT NULL CHECK(ISNUMERIC(PIN) = 1) UNIQUE
-)
+);
 
 CREATE TABLE Purchases (
 	PurchaseId int IDENTITY(1,1) PRIMARY KEY,
@@ -46,16 +47,16 @@ CREATE TABLE Purchases (
 	StartTime datetime NOT NULL,
 	EndTime datetime NOT NULL,
 	Duration AS DATEDIFF(hh, StartTime, EndTime),
-)
+);
 
 ALTER TABLE Purchases
-ADD CONSTRAINT TimeOrderCheck CHECK(EndTime>StartTime)
+ADD CONSTRAINT TimeOrderCheck CHECK(EndTime>StartTime);
 
 CREATE TABLE Visits (
 	VisitorId int FOREIGN KEY REFERENCES Visitors(VisitorId),
 	PurchaseId int FOREIGN KEY REFERENCES Purchases(PurchaseId),
 	CONSTRAINT VisitId PRIMARY KEY(VisitorId, PurchaseId)
-)
+);
 
 
 
@@ -81,6 +82,7 @@ INSERT INTO Rooms(HotelId, Number, Category, Price, Capacity, Story) VALUES
 (2, 101, 'Standard', 604, 6, 2),
 (2, 351, 'Standard', 384, 3, 4),
 (2, 307, 'Standard', 454, 2, 4),
+(2, 308, 'Standard', 454, 3, 4),
 (3, 802, 'Suite', 2000, 3, 6),
 (4, 502, 'Suite', 4050, 7, 5),
 (4, 488, 'Suite', 444, 3, 4),
@@ -129,7 +131,7 @@ INSERT INTO Purchases(CustomerId, TransactionDate, Price, RoomId, Board, StartTi
 (3, '2019-05-07', 3091, 4, 'Full', '2019-05-12','2019-05-17'),
 (7, '2019-08-03', 4392, 17, 'None', '2019-08-07','2019-08-10'),
 (4, '2020-02-23', 6044, 13, 'None', '2020-02-24','2020-02-26'),
-(10, '2020-05-17', 4442, 10, 'Half', '2020-05-22','2020-05-24'),
+(10, '2020-05-17', 4442, 10, 'None', '2020-05-22','2020-05-24'),
 (12, '2020-06-29', 1999, 7, 'Half', '2020-06-30','2020-07-02'),
 (9, '2020-07-15', 2011, 11, 'Full', '2020-07-17','2020-07-22'),
 (14, '2020-10-01', 3020, 5, 'Half', '2020-10-18','2020-10-22'),
@@ -152,19 +154,51 @@ INSERT INTO Visits(VisitorId, PurchaseId) VALUES
 (3,6),
 (9,7),
 (14,8),
+(11,8),
 (13,9),
 (2,10),
 (5,10);
 
 
-SELECT * FROM Rooms WHERE HotelId = (SELECT HotelId FROM Hotels WHERE Name = 'Elara') ORDER BY Number ASC
+SELECT * FROM Rooms WHERE HotelId = (SELECT HotelId FROM Hotels WHERE Name = 'Elara') ORDER BY Number ASC;
 
-SELECT * FROM Rooms WHERE Number LIKE '1%'
+SELECT * FROM Rooms WHERE Number LIKE '1%';
 
-SELECT FirstName, LastName FROM Staff WHERE HotelId = 4 AND JOB = 'Cleaner' AND Gender=2
+SELECT FirstName, LastName FROM Staff WHERE HotelId = 4 AND JOB = 'Cleaner' AND Gender=2;
 
-SELECT * FROM Purchases WHERE TransactionDate >= '2020-12-01' AND Price>1000
+SELECT * FROM Purchases WHERE TransactionDate >= '2020-12-01' AND Price>1000;
 
-SELECT 
+SELECT Visitors.VisitorId, Visitors.FirstName, Visitors.LastName, Visitors.Gender, Visitors.PIN,
+Purchases.RoomId, Purchases.Board, Purchases.StartTime, Purchases.EndTime, Purchases.Duration AS DurationInHours
+FROM Visits
+INNER JOIN Visitors ON Visitors.VisitorID = Visits.VisitorId
+INNER JOIN Purchases ON Purchases.PurchaseId = Visits.PurchaseId
+WHERE (GETDATE() BETWEEN StartTime AND EndTime);
 
+DELETE visit
+FROM Visits visit
+INNER JOIN Purchases ON Purchases.PurchaseId = visit.PurchaseId
+WHERE Purchases.StartTime < '2020-12-1'; --DELETES MOST VISITS 
 
+UPDATE Rooms
+SET Capacity = 4
+WHERE HotelId = 2 AND Capacity = 3;
+
+SELECT Visitors.VisitorId, Visitors.FirstName, Visitors.LastName, Visitors.Gender, Visitors.PIN,
+Purchases.RoomId, Purchases.Board, Purchases.StartTime, Purchases.EndTime, Purchases.Duration AS DurationInHours
+FROM Visits
+INNER JOIN Visitors ON Visitors.VisitorID = Visits.VisitorId
+INNER JOIN Purchases ON Purchases.PurchaseId = Visits.PurchaseId
+WHERE RoomId = 5
+ORDER BY Duration ASC;
+
+SELECT Visitors.VisitorId, Visitors.FirstName, Visitors.LastName, Visitors.Gender, Visitors.PIN,
+Purchases.RoomId, Purchases.Board, Purchases.StartTime, Purchases.EndTime, Purchases.Duration AS DurationInHours
+FROM Visits
+INNER JOIN Visitors ON Visitors.VisitorID = Visits.VisitorId
+INNER JOIN Purchases ON Purchases.PurchaseId = Visits.PurchaseId
+WHERE (RoomId IN (SELECT RoomId FROM Rooms WHERE HotelId=2)) AND (Board = 'Half' OR Board = 'Full');
+
+UPDATE TOP(2) Staff
+SET Job = 'Receptionist'
+WHERE Job = 'Service';
