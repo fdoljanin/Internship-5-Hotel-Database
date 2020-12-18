@@ -5,7 +5,7 @@ USE Hotel
 CREATE TABLE Hotels (
 	HotelId int IDENTITY(1,1) PRIMARY KEY,
 	Name varchar(100) NOT NULL,
-	City varchar(100) NOT NULL,
+	City varchar(100) NOT NULL UNIQUE(Name, City),
 	Rating int NOT NULL CHECK(Rating BETWEEN 1 AND 5)
 );
 
@@ -14,14 +14,13 @@ CREATE TABLE Rooms (
 	HotelId int FOREIGN KEY REFERENCES Hotels(HotelId) NOT NULL,
 	Number int NOT NULL UNIQUE(HotelId, Number),
 	Category varchar(50) CHECK(Category IN ('Standard','Studio','Suite','President')) NOT NULL,
-	Price int NOT NULL,
-	Capacity int NOT NULL,
-	Story int NOT NULL
+	Price int NOT NULL CHECK(Price>0),
+	Capacity int NOT NULL CHECK(Capacity>0),
+	Story int NOT NULL CHECK(Story>=0)
 );
 
-
-CREATE TABLE Staff (
-	PersonID int IDENTITY(1,1) PRIMARY KEY,
+CREATE TABLE Employees (
+	EmployeeID int IDENTITY(1,1) PRIMARY KEY,
 	FirstName varchar(100) NOT NULL,
 	LastName varchar(100) NOT NULL,
 	HotelId int FOREIGN KEY REFERENCES Hotels(HotelId) UNIQUE(FirstName, LastName, HotelId),
@@ -41,11 +40,11 @@ CREATE TABLE Purchases (
 	PurchaseId int IDENTITY(1,1) PRIMARY KEY,
 	CustomerId int FOREIGN KEY REFERENCES Visitors(VisitorId),
 	TransactionDate datetime2 NOT NULL,
-	Price int NOT NULL,
+	Price int NOT NULL CHECK(Price>=0),
 	RoomId int FOREIGN KEY REFERENCES Rooms(RoomId),
 	Board varchar(10) NOT NULL CHECK(Board IN('None','Half','Full')),
-	StartTime datetime NOT NULL,
-	EndTime datetime NOT NULL,
+	StartTime datetime NOT NULL, --u slucaju da se trazilo vrijeme boravka za svaku osobu a ne rezervaciju,
+	EndTime datetime NOT NULL, --ovo bih samo prebacio u visits
 	Duration AS DATEDIFF(hh, StartTime, EndTime),
 );
 
@@ -58,7 +57,19 @@ CREATE TABLE Visits (
 	CONSTRAINT VisitId PRIMARY KEY(VisitorId, PurchaseId)
 );
 
+GO
+CREATE TRIGGER DeleteVisits
+ON Purchases
+INSTEAD OF DELETE
+AS 
+BEGIN
+DELETE FROM Visits
+WHERE PurchaseId IN (SELECT deleted.PurchaseId FROM deleted)
+DELETE FROM Purchases
+WHERE PurchaseId IN (SELECT deleted.PurchaseId FROM deleted)
+END
 
+--
 
 INSERT INTO Hotels(Name, City, Rating) VALUES
 ('Elara', 'Las Vegas', 5),
@@ -68,7 +79,6 @@ INSERT INTO Hotels(Name, City, Rating) VALUES
 ('Emma', 'San Antonio', 3),
 ('Clermont', 'Atlanta', 5),
 ('Langham', 'Chicago', 5);
-
 
 INSERT INTO Rooms(HotelId, Number, Category, Price, Capacity, Story) VALUES
 (1, 100, 'Standard', 330, 3, 1),
@@ -95,8 +105,7 @@ INSERT INTO Rooms(HotelId, Number, Category, Price, Capacity, Story) VALUES
 (3, 202, 'Studio', 602, 1, 2),
 (3, 404, 'Studio', 702, 1, 4);
 
-
-INSERT INTO Staff(FirstName, LastName, HotelId, Gender, Job) VALUES
+INSERT INTO Employees(FirstName, LastName, HotelId, Gender, Job) VALUES
 ('Tom', 'Hanks', 1, 1, 'Cleaner'),
 ('Taylor', 'Swift', 2, 2, 'Cleaner'),
 ('Brad', 'Pitt', 2, 1, 'Receptionist'),
@@ -137,7 +146,11 @@ INSERT INTO Purchases(CustomerId, TransactionDate, Price, RoomId, Board, StartTi
 (14, '2020-10-01', 3020, 5, 'Half', '2020-10-18','2020-10-22'),
 (13, '2020-12-15', 2011, 11, 'Full', '2020-12-15','2021-01-12'),
 (13, '2020-12-03', 955, 12, 'None', '2020-12-16','2021-01-02'),
-(2, '2020-12-01', 3020, 5, 'Half', '2020-12-04','2020-12-30');
+(2, '2020-12-01', 3020, 5, 'Half', '2020-12-04','2020-12-30'),
+(5, '2021-12-15', 2041, 8, 'Full', '2021-12-15','2022-01-12'),
+(6, '2021-12-03', 935, 9, 'None', '2021-12-16','2022-01-02'),
+(7, '2022-12-01', 2020, 10, 'Half', '2022-12-04','2023-12-30');
+
 
 INSERT INTO Visits(VisitorId, PurchaseId) VALUES
 (1,1),
@@ -157,14 +170,20 @@ INSERT INTO Visits(VisitorId, PurchaseId) VALUES
 (11,8),
 (13,9),
 (2,10),
-(5,10);
+(5,10),
+(14,11),
+(11,12),
+(13,12),
+(2,13),
+(5,13);
+
 
 
 SELECT * FROM Rooms WHERE HotelId = (SELECT HotelId FROM Hotels WHERE Name = 'Elara') ORDER BY Number ASC;
 
 SELECT * FROM Rooms WHERE Number LIKE '1%';
 
-SELECT FirstName, LastName FROM Staff WHERE HotelId = 4 AND JOB = 'Cleaner' AND Gender=2;
+SELECT FirstName, LastName FROM Employees WHERE HotelId = 4 AND JOB = 'Cleaner' AND Gender=2;
 
 SELECT * FROM Purchases WHERE TransactionDate >= '2020-12-01' AND Price>1000;
 
@@ -175,10 +194,8 @@ INNER JOIN Visitors ON Visitors.VisitorID = Visits.VisitorId
 INNER JOIN Purchases ON Purchases.PurchaseId = Visits.PurchaseId
 WHERE (GETDATE() BETWEEN StartTime AND EndTime);
 
-DELETE visit
-FROM Visits visit
-INNER JOIN Purchases ON Purchases.PurchaseId = visit.PurchaseId
-WHERE Purchases.StartTime < '2020-12-1'; --DELETES MOST VISITS 
+DELETE FROM Purchases
+WHERE StartTime < '2020-12-1'; --DELETES MOST VISITS 
 
 UPDATE Rooms
 SET Capacity = 4
@@ -199,6 +216,6 @@ INNER JOIN Visitors ON Visitors.VisitorID = Visits.VisitorId
 INNER JOIN Purchases ON Purchases.PurchaseId = Visits.PurchaseId
 WHERE (RoomId IN (SELECT RoomId FROM Rooms WHERE HotelId=2)) AND (Board = 'Half' OR Board = 'Full');
 
-UPDATE TOP(2) Staff
+UPDATE TOP(2) Employees
 SET Job = 'Receptionist'
 WHERE Job = 'Service';
