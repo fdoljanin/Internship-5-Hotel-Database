@@ -58,6 +58,21 @@ CREATE TABLE Visits (
 );
 
 GO
+CREATE FUNCTION RoomValid(@PurchaseId2 as INT) --checks if there are more visits than allowed
+RETURNS BIT
+AS
+BEGIN
+IF (SELECT COUNT(PurchaseId) FROM Visits WHERE PurchaseId = @PurchaseId2) <= 
+(SELECT Capacity FROM Rooms WHERE RoomId = (SELECT RoomId FROM Purchases WHERE PurchaseId = @PurchaseId2))
+	RETURN 1;
+RETURN 0;
+END
+
+GO
+ALTER TABLE Visits
+ADD CONSTRAINT CheckRoomCapacity CHECK([dbo].RoomValid(PurchaseId)=1)
+
+GO
 CREATE TRIGGER DeleteVisits
 ON Purchases
 INSTEAD OF DELETE
@@ -88,7 +103,7 @@ INSERT INTO Rooms(HotelId, Number, Category, Price, Capacity, Story) VALUES
 (1, 209, 'Standard', 419, 2, 2),
 (1, 311, 'President', 1099, 2, 3),
 (1, 425, 'Suite', 1500, 4, 4),
-(2, 201, 'Studio', 111, 1, 3),
+(2, 201, 'Studio', 111, 2, 3),
 (2, 101, 'Standard', 604, 6, 2),
 (2, 351, 'Standard', 384, 3, 4),
 (2, 307, 'Standard', 454, 2, 4),
@@ -150,7 +165,6 @@ INSERT INTO Purchases(CustomerId, TransactionDate, Price, RoomId, Board, StartTi
 (5, '2021-12-15', 2041, 8, 'Full', '2021-12-15','2022-01-12'),
 (6, '2021-12-03', 935, 9, 'None', '2021-12-16','2022-01-02'),
 (7, '2022-12-01', 2020, 10, 'Half', '2022-12-04','2023-12-30');
-
 
 INSERT INTO Visits(VisitorId, PurchaseId) VALUES
 (1,1),
